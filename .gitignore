@@ -1,0 +1,3 @@
+**/bin  #ignore all files called bin in all directories
+
+**~      #ignore all files that end with ~ in all directories
