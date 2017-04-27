@@ -28,7 +28,7 @@ void *treatFile(void *arg){
 	{//file opened
 		while(fgets(problem, 4, files[i]), !feof(files[i])){ //
 			int prob_num = atoi(problem);			//convert string to number...
-			printf("thread: %d, atoi: %d\n", i, prob_num);
+			//printf("thread: %d, atoi: %d\n", i, prob_num);
 			pthread_mutex_lock(&produtos_mutex[prob_num]);	
 			produtos[prob_num]++;							
 			pthread_mutex_unlock(&produtos_mutex[prob_num]);	
