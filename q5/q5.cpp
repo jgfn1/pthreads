@@ -5,9 +5,14 @@
 	*
 */
 #include <bits/stdc++.h>
-#define MAX 1000000
+#include <thread>
+#define THREADS 3
 
 using namespace std;
+
+// TO COMPILE:
+    // g++ q5.cpp -std=c++0x -lpthread -o e
+    // g++ q5.cpp -std=c++0x -pthread -o e
 
 typedef pair<int,int> sparseElement;
 vector< vector<sparseElement> > sparseMatrix;
@@ -21,30 +26,38 @@ int lengthSparseX, lengthSparseY,
 
 
 void readData();
+void showResultMatrix();
 void clearMatrix(int** m, int x, int y);
-void multiplySparseWithDense();
+void *multiplySparseWithDense(int id);
 
 int main(){
     readData();
-    multiplySparseWithDense();
+
+    // Allocating one thread for each line of matrix
+    vector< thread > threads;
     for(int i=0; i<lengthResultX; i++){
-        for(int j=0; j<lengthResultY; j++){
-            printf("%d ",resultMatrix[i][j]);
-        }
-        printf("\n");
+        threads.push_back( thread(multiplySparseWithDense, i) );
     }
+
+    // Waiting each thread stop
+    for(int i=0; i<lengthResultX; i++){
+      threads[i].join();
+    }
+
+    // Show the result
+    showResultMatrix();
+
 }
 
 
 
-void multiplySparseWithDense(){
+void *multiplySparseWithDense(int id){
     int tmpIndice;
-    for (int i=0; i<sparseMatrix.size(); i++) {
-        for (int j = 0; j < sparseMatrix[i].size(); j++) {
-            tmpIndice = sparseMatrix[i][j].first;
-            for (int k = 0; k < lengthResultY; k++) {
-                resultMatrix[i][k] += (sparseMatrix[i][j].second * denseMatrix[tmpIndice][k]); // first is the index, and second is the value.
-            }
+    printf("Hi, I'm thread %d and i'll calculate %d line\n", id, id);
+    for (int j = 0; j < sparseMatrix[id].size(); j++) {
+        tmpIndice = sparseMatrix[id][j].first;
+        for (int k = 0; k < lengthResultY; k++) {
+            resultMatrix[id][k] += (sparseMatrix[id][j].second * denseMatrix[tmpIndice][k]); // first is the index, and second is the value.
         }
     }
 }
@@ -101,4 +114,13 @@ void clearMatrix(int** m, int x, int y){
     for(int i=0; i<x; i++)
       for(int j=0; j<y; j++)
           m[i][j] = 0;
+}
+
+void showResultMatrix(){
+    for(int i=0; i<lengthResultX; i++){
+        for(int j=0; j<lengthResultY; j++){
+            printf("%d\t",resultMatrix[i][j]);
+        }
+        printf("\n");
+    }
 }
