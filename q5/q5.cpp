@@ -14,10 +14,10 @@ using namespace std;
     // g++ q5.cpp -std=c++0x -lpthread -o e
     // g++ q5.cpp -std=c++0x -pthread -o e
 
-typedef pair<int,int> sparseElement;
+typedef pair<int,double> sparseElement;
 vector< vector<sparseElement> > sparseMatrix;
-int** denseMatrix;
-int** resultMatrix;
+double** denseMatrix;
+double** resultMatrix;
 
 int lengthSparseX, lengthSparseY,
     lengthDenseX, lengthDenseY,
@@ -27,7 +27,7 @@ int lengthSparseX, lengthSparseY,
 
 void readData();
 void showResultMatrix();
-void clearMatrix(int** m, int x, int y);
+void clearMatrix(double** m, int x, int y);
 void *multiplySparseWithDense(int id);
 
 int main(){
@@ -53,7 +53,7 @@ int main(){
 
 void *multiplySparseWithDense(int id){
     int tmpIndice;
-    printf("Hi, I'm thread %d and i'll calculate %d line\n", id, id);
+    printf("Hi, I'm thread %d going calculate %d line\n", id, id);
     for (int j = 0; j < sparseMatrix[id].size(); j++) {
         tmpIndice = sparseMatrix[id][j].first;
         for (int k = 0; k < lengthResultY; k++) {
@@ -73,12 +73,12 @@ void readData(){
   lengthResultY = lengthDenseY;   // result has the same number of columns wich the second matrix
 
   // Allocating result matrix lines.
-  resultMatrix = (int**) malloc(lengthResultX * sizeof(int**));
+  resultMatrix = (double**) malloc(lengthResultX * sizeof(double**));
 
   // Reading values of sparse matrix
   for(int i = 0; i < lengthSparseX; i++){
       // Allocating result matrix columns.
-      resultMatrix[i] = (int*) malloc(lengthResultY * sizeof(int*));
+      resultMatrix[i] = (double*) malloc(lengthResultY * sizeof(double*));
 
       // Reading values:
 
@@ -94,11 +94,11 @@ void readData(){
   }
 
   // Allocating dense matrix lines.
-  denseMatrix = (int**) malloc(lengthDenseX * sizeof(int**));
+  denseMatrix = (double**) malloc(lengthDenseX * sizeof(double**));
   // Reading values of dense matrix
   for(int i = 0; i < lengthDenseX; i++){
       // Allocating dense matrix columns.
-      denseMatrix[i] = (int*) malloc(lengthDenseY * sizeof(int*));
+      denseMatrix[i] = (double*) malloc(lengthDenseY * sizeof(double*));
 
       // Reading values:
       for(int j = 0; j < lengthDenseY; j++){
@@ -110,7 +110,7 @@ void readData(){
   clearMatrix(resultMatrix, lengthResultX, lengthResultY);
 }
 
-void clearMatrix(int** m, int x, int y){
+void clearMatrix(double** m, int x, int y){
     for(int i=0; i<x; i++)
       for(int j=0; j<y; j++)
           m[i][j] = 0;
@@ -119,7 +119,7 @@ void clearMatrix(int** m, int x, int y){
 void showResultMatrix(){
     for(int i=0; i<lengthResultX; i++){
         for(int j=0; j<lengthResultY; j++){
-            printf("%d\t",resultMatrix[i][j]);
+            printf("%.1lf\t",resultMatrix[i][j]);
         }
         printf("\n");
     }
