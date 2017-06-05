@@ -1,4 +1,4 @@
 #!/bin/bash
-for ((i = 0; i < 100; i++ )) do
-	./test
+for ((i = 0; i < 1000; i++ )) do
+	./new
 done
