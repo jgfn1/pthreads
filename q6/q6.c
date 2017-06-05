@@ -19,11 +19,10 @@ struct Sensor{
     int blocked; //denotes if the sensor is blocked or not (i.e. to know if it's possible not to put any luggage in its queue)
 	int count;
 	int queue;
-	pthread_cond_t queueFilled;
     pthread_mutex_t mutex; //mutex to add or remove luggages from queue
 } Sensor;
 
-Sensor sensor[S] = { {(pthread_t) NULL, 0, 0, 0, PTHREAD_COND_INITIALIZER, PTHREAD_MUTEX_INITIALIZER} };
+Sensor sensor[S] = { {(pthread_t) NULL, 0, 0, 0, PTHREAD_MUTEX_INITIALIZER} };
 pthread_mutex_t xrayedLuggageMutex = PTHREAD_MUTEX_INITIALIZER;
 int xrayedLuggageCount = 0;
 
@@ -69,9 +68,6 @@ void * xrayLuggage(void * s){
 		}
 		pthread_mutex_unlock(&sensor[this].mutex);
 	}
-	for (i = 0; i < S; i++) {
-		pthread_cond_broadcast(&sensor[i].queueFilled); //unblock occasionally blocked sensor threads
-	}
 }
 
 void * sendLuggageToSensor(void * line){
@@ -87,7 +83,6 @@ void * sendLuggageToSensor(void * line){
 			sensor[s].queue++;
 			remainingLuggage--;
 			printf("Line %d: sensor[%d].queue = %d, remaining: %d\n", this, s, sensor[s].queue, remainingLuggage);
-			pthread_cond_signal(&sensor[s].queueFilled); //in case the sensor's waiting
 		}
 		pthread_mutex_unlock(&sensor[s].mutex);
 		sched_yield();
