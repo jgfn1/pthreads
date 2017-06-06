@@ -19,11 +19,8 @@ typedef pair<int,double> sparseElement;
 vector< double > vetor;
 vector< vector< sparseElement > > sparseMatrix;
 vector< vector< sparseElement > > secondSparseMatrix;
-
-double **denseMatrix,
-       **matrixSparseVector,
-       **matrixSparseDense,
-       **matrixSparseSparse;
+double** denseMatrix;
+double** resultMatrix;
 
 int lengthSparseX, lengthSparseY,
     lengthDenseX, lengthDenseY,
@@ -32,7 +29,7 @@ int lengthSparseX, lengthSparseY,
 
 
 void readData();
-void showResultMatrix(double **m, int x, int y);
+void showResultMatrix(int x, int y);
 void clearMatrix(double** m, int x, int y);
 void *multiplySparseWithDense(int id);
 void *multiplySparseWithVector(int id);
@@ -43,30 +40,47 @@ int main(){
     //        Two sparses matrix, one vector and one dense matrix.
     readData();
 
-
+    printf("------------------ calculating: sparse x vector \n");
 
     // Allocating one thread for each line of matrix
     vector< thread > threads;
-    for(int i=0; i<lengthResultX; i++){
-        threads.push_back( thread(multiplySparseWithVector, i) );
-        threads.push_back( thread(multiplySparseWithDense, i) );
-        threads.push_back( thread(multiplySparseWithSparse, i) );
-    }
+    for(int i=0; i<lengthResultX; i++) threads.push_back( thread(multiplySparseWithVector, i) );
 
     // Waiting each thread stop
-    for(int i=0; i<threads.size(); i++) threads[i].join();
+    for(int i=0; i<lengthResultX; i++) threads[i].join();
+
+    // Show the result
+    showResultMatrix(lengthResultX, 1);
+
+    clearMatrix(resultMatrix, lengthResultX, 1);// Because multiply by vector don't write after first column
 
 
+    printf("------------------ calculating: sparse x dense \n");
+    // Allocating one thread for each line of matrix
+    threads.clear();
+    for(int i=0; i<lengthResultX; i++) threads.push_back( thread(multiplySparseWithDense, i) );
 
-    printf("------------------ calculated: sparse x vector %d\n", lengthResultX);
-    showResultMatrix(matrixSparseVector, lengthResultX, 1);
+    // Waiting each thread stop
+    for(int i=0; i<lengthResultX; i++) threads[i].join();
 
-    printf("------------------ calculated: sparse x dense \n");
-    showResultMatrix(matrixSparseDense, lengthResultX, lengthResultY);
+    // Show the result
+    showResultMatrix(lengthResultX, lengthResultY);
 
+    clearMatrix(resultMatrix, lengthResultX, lengthResultY);
 
-    printf("------------------ calculated: sparse x sparse \n");
-    showResultMatrix(matrixSparseSparse, lengthResultX,lengthResultY);
+    printf("------------------ calculating: sparse x sparse \n");
+
+    // Allocating one thread for each line of matrix
+    threads.clear();
+    for(int i=0; i<lengthResultX; i++) threads.push_back( thread(multiplySparseWithSparse, i) );
+
+    // Waiting each thread stop
+    for(int i=0; i<lengthResultX; i++) threads[i].join();
+
+    // Show the result
+    showResultMatrix(lengthResultX,lengthResultY);
+
+    clearMatrix(resultMatrix, lengthResultX, lengthResultY);
 
     pthread_exit(NULL);
 }
@@ -75,33 +89,33 @@ int main(){
 
 void *multiplySparseWithVector(int id){
     int tmpIndice=0;
-    printf("Hi, I'm thread (sparse X vector) %d going calculate %d line\n", id, id);
+    printf("Hi, I'm thread %d going calculate %d line\n", id, id);
     for (int j = 0; j < sparseMatrix[id].size(); j++) {
         tmpIndice = sparseMatrix[id][j].first;
-        matrixSparseVector[id][0] += (sparseMatrix[id][j].second * vetor[tmpIndice]); // first is the index, and second is the value.
+        resultMatrix[id][0] += (sparseMatrix[id][j].second * vetor[tmpIndice]); // first is the index, and second is the value.
     }
 }
 
 
 void *multiplySparseWithDense(int id){
     int tmpIndice;
-    printf("Hi, I'm thread (sparse X dense) %d going calculate %d line\n", id, id);
+    printf("Hi, I'm thread %d going calculate %d line\n", id, id);
     for (int j = 0; j < sparseMatrix[id].size(); j++) {
         tmpIndice = sparseMatrix[id][j].first;
         for (int k = 0; k < lengthResultY; k++) {
-            matrixSparseDense[id][k] += (sparseMatrix[id][j].second * denseMatrix[tmpIndice][k]); // first is the index, and second is the value.
+            resultMatrix[id][k] += (sparseMatrix[id][j].second * denseMatrix[tmpIndice][k]); // first is the index, and second is the value.
         }
     }
 }
 
 void *multiplySparseWithSparse(int id){
     int tmpIndice, tmp2;
-    printf("Hi, I'm thread (sparse X sparse) %d going calculate %d line\n", id, id);
+    printf("Hi, I'm thread %d going calculate %d line\n", id, id);
     for (int j = 0; j < sparseMatrix[id].size(); j++) {
         tmpIndice = sparseMatrix[id][j].first;
         for(int k=0; k < secondSparseMatrix[tmpIndice].size(); k++){
             tmp2 = secondSparseMatrix[tmpIndice][k].first;
-            matrixSparseSparse[id][tmp2]  += (sparseMatrix[id][j].second * secondSparseMatrix[tmpIndice][k].second);
+            resultMatrix[id][tmp2]  += (sparseMatrix[id][j].second * secondSparseMatrix[tmpIndice][k].second);
         }
     }
 }
@@ -117,14 +131,12 @@ void readData(){
   lengthResultY = lengthDenseY;   // result has the same number of columns wich the second matrix
 
   // Allocating result matrix lines.
-  matrixSparseDense = (double**) malloc(lengthResultX * sizeof(double**));
-  matrixSparseSparse = (double**) malloc(lengthResultX * sizeof(double**));
+  resultMatrix = (double**) malloc(lengthResultX * sizeof(double**));
 
   // Reading values of sparse matrix
   for(int i = 0; i < lengthSparseX; i++){
       // Allocating result matrix columns.
-      matrixSparseDense[i] = (double*) malloc(lengthResultY * sizeof(double*));
-      matrixSparseSparse[i] = (double*) malloc(lengthResultY * sizeof(double*));
+      resultMatrix[i] = (double*) malloc(lengthResultY * sizeof(double*));
 
       // Reading values:
 
@@ -138,17 +150,12 @@ void readData(){
       //(to_unprofessional_debug)printf("\n");
       sparseMatrix.push_back(tmp); // Adding our new vector into sparseMatrix that is a vector. (or better, that is a matrix!)
   }
-  printf("here %d\n", lengthResultX);
+
   // Reading values to vector.
-  matrixSparseVector = (double**) malloc(lengthResultX * sizeof(double**));
   for (int i = 0; i < lengthResultX; i++) {
       cin >> a;
       vetor.push_back(a);
-      matrixSparseVector[i] = (double*) malloc(1 * sizeof(double));
   }
-
-  for (int i = 0; i < lengthResultX; i++)
-      printf(" %.1lf \n", vetor[i]);
 
   // Allocating dense matrix lines.
   denseMatrix = (double**) malloc(lengthDenseX * sizeof(double**));
@@ -175,9 +182,8 @@ void readData(){
       }
       secondSparseMatrix.push_back(tmp); // Adding our new vector into sparseMatrix that is a vector. (or better, that is a matrix!)
   }
-  //clearMatrix(matrixSparseVector, lengthResultX, 1);
-  clearMatrix(matrixSparseDense, lengthResultX, lengthResultY);
-  clearMatrix(matrixSparseSparse, lengthResultX, lengthResultY);
+
+  clearMatrix(resultMatrix, lengthResultX, lengthResultY);
 }
 
 void clearMatrix(double** m, int x, int y){
@@ -186,10 +192,10 @@ void clearMatrix(double** m, int x, int y){
           m[i][j] = 0;
 }
 
-void showResultMatrix(double **m, int x,int y){
+void showResultMatrix(int x,int y){
     for(int i=0; i<x; i++){
         for(int j=0; j<y; j++){
-            printf("%.1lf\t",m[i][j]);
+            printf("%.1lf\t",resultMatrix[i][j]);
         }
         printf("\n");
     }
