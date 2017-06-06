@@ -42,22 +42,28 @@ A saída deverá indicar quando um cliente receber uma página web.
 list<Request*> requests;
 mutex canRequest; // only for client requests...
 unique_lock<mutex> requestProcessing(canRequest);
+unique_lock<mutex> newRequest(canRequest);
+condition_variable createdRequest;
 //condition_variable ableNewRequest;// to lock clients making to many requests...
 bool canWriteRequest;
 int maxPages, clientsLength;
 
-void *server();
-void *client();
+void server();
+void client(int id);
 Request* make_request(int id);
 
 int main(){
     // Allocating one thread for each line of matrix
     vector< thread > clients;
-    cin >> maxPages >> clientsLength;
+//    cin >> maxPages;
+//    cin >> clientsLength;
 
-    thread s = thread(server);
+    printf("uahehuae");
 
-    for(int i=0; i<clientsLength; i++) clients.push_back( thread(client, i) );
+  /*  thread s = thread(server);
+    for(int i=0; i<clientsLength; i++){
+	clients.push_back( thread(client, i) );
+    }*/
 
     pthread_exit(NULL);
 }
@@ -69,17 +75,20 @@ int main(){
   *    This function build pages and serve on buffer.
   *
 ***/
-void *server(){
+void server(){
+    
     int page = 0;
     while(true){
-        canRequest.lock();
-
+    	printf("Hi at server\n");
         // Safe zone:
+	    createdRequest.wait(newRequest);// Waiting a client make a request.
+	    canRequest.lock();
 
             Request *r = requests.front();// requests are processing in FIFO
             r->pageContent = page++;
             r->responseReady = true;
             r->resolve.notify_one();// WAKE UP THREAD TO READ ..
+       
 
             // Acho que dá pra fazer assim aqui
             // canRequest.unlock e notificar o unique_lock para criar uma nova requisição..
@@ -87,7 +96,7 @@ void *server(){
 
 
             //r->resolve.wait(canRequest, []{return r->responseFinished});// Only remove request, after thread read data "returned";);
-            r->resolve.wait(requestProcessing, r->responseFinished);// Only remove request, after thread read data "returned";);
+            r->resolve.wait(requestProcessing);// Only remove request, after thread read data "returned";);
             requests.pop_front();
             free(r); // free memory space.
 
@@ -99,7 +108,9 @@ void *server(){
             if(page == maxPages){
                 pthread_exit(NULL);
             }
+
     }
+
     pthread_exit(NULL);
 }
 
@@ -112,7 +123,8 @@ void *server(){
 ***/
 void client(int id){
 
-    while(1){
+   while(1){
+    	printf("Hi i'm client %d \n", id);
           canRequest.lock();
           Request* r;
           while(requests.size() > 4){// Impossible have 5 requests... is buffer size!
@@ -120,15 +132,16 @@ void client(int id){
           }
           r = make_request(id);
           requests.push_back(r);
+	  createdRequest.notify_one(); // or notify_one ? makes server wakeup..
 
           printf("I'm thread %d requesting new page at buffer[%d]\n", r->idClient,  r->idBuffer);
 
           while(r->pageContent == -1){
               //r->resolve.wait(canRequest, []{return r->responseReady});
-              r->resolve.wait(requestProcessing, r->responseReady);
+              r->resolve.wait(requestProcessing);
           }
 
-          printf("I'm thread %d reading page: %d at buffer[%d]\n", r->idClient, r->idBuffer);
+          printf("I'm thread %d reading page: %d at buffer[%d]\n", r->idClient, r->pageContent, r->idBuffer);
 
           r->resolve.notify_one();
           canRequest.unlock();
@@ -144,6 +157,7 @@ Request* make_request(int id){
     r->pageContent = -1;
     r->responseReady = false;
     r->responseFinished = false;
+
     return r;
 }
 
