@@ -4,6 +4,7 @@
 		Question 6 for Threads Project
 		Created by nmf2
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h> //sched_yield() comes from here, pthread_yield() wasn't working
@@ -25,12 +26,17 @@ struct Sensor{
 Sensor sensor[S] = { {(pthread_t) NULL, 0, 0, 0, PTHREAD_MUTEX_INITIALIZER} };
 pthread_mutex_t xrayedLuggageMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t blockedSensorsMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t reallocationArrayMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t reallocationMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t doMaintenceCond[S] = { PTHREAD_COND_INITIALIZER };
 pthread_cond_t maintenceCompleteCond = PTHREAD_COND_INITIALIZER;
 pthread_barrier_t maintenceCompleteBarrier;
+
 int xrayedLuggageCount = 0;
 int blockedSensors = 0;
-int sensorToReallocate[S] = { 0 }; //0 means it doesn't need reallocation, 1 means it does
+int sensorsToReallocate[S] = { 0 }; //0 means it doesn't need reallocation, 1 means it does
+int sensorInReallocation = -1; //holds the index of the sensor that's having it's luggage reallocated in the present moment.
+
 
 
 pthread_t line[N];
@@ -86,16 +92,31 @@ void * xrayLuggage(void * s){
 			}
 		} else{ //block sensor and start or wait for maintence
 			sensor[this].blocked = 1;
+			pthread_mutex_lock(&reallocationMutex);
+
+			if(sensorInReallocation == -1) {
+				sensorInReallocation = this;
+			} else {
+				//no need for mutexes here, only this thread will alter the position of the vector
+				sensorsToReallocate[this] = 1;
+
+			}
+			
+			pthread_mutex_unlock(&reallocationMutex);
+			
 			pthread_mutex_lock(&blockedSensorsMutex);
 			blockedSensors++;
 			//if(blockedSensors ==  S) pthread_cond_signal(&allSensorsBlockedCond);
+
 			pthread_mutex_unlock(&blockedSensorsMutex);
+			
 			while (sensor[this].blocked) {
 				printf("sensor %d waiting for maintence, state: %d. blockedSensors: %d\n", this, sensor[this].blocked, blockedSensors);
 				pthread_cond_wait(&doMaintenceCond[this], &sensor[this].mutex);
 				printf("\t\tSensor %d: Manutencao\n", this);
 				sensor[this].count = 0;
 				sensor[this].blocked = 0;
+				sensorsToReallocate[this] = 0; //since maintenance has just happened any pending reallocaton is unnecessary.
 				pthread_mutex_lock(&blockedSensorsMutex);
 				blockedSensors--; //decrement count of blocked sensors
 				pthread_mutex_unlock(&blockedSensorsMutex);
@@ -171,6 +192,7 @@ void * sendLuggageToSensor(void * line){
 				remainingLuggage--;
 				//printf("Line %d: sensor[%d].queue = %d, remaining: %d\n", this, s, sensor[s].queue, remainingLuggage);
 			}
+		}
 		pthread_mutex_unlock(&sensor[s].mutex); //unlock sensor that's still locked from getLeastBusySensor()
 		//printf("line %d, sensor: %d, lock realeased\n", this, s);
 		pthread_mutex_unlock(&lineMutex[this]);
