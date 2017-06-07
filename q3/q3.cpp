@@ -14,6 +14,9 @@ using namespace std;
     // g++ q3.cpp -std=c++0x -lpthread -o e
     // g++ q3.cpp -std=c++0x -pthread -o e
 
+// TO EXECUTE:
+    // ./e < in 
+
 typedef struct request {
     int idClient;
     int idBuffer; // to check if exists in max 5 spaces at buffer.
@@ -23,12 +26,13 @@ typedef struct request {
     condition_variable resolveResponse, resolveFinished;
 } Request;
 
-list<Request*> requests;
-mutex canRequest, canCreate, canProcessing, canRead; // only for client requests...
+list<Request*> bufferRequests;
+mutex canRequest, hasRequest, canCreate, canProcessing, canRead; // My mutexes to lock or unlock
 
 condition_variable createdRequest, ableNewRequest; // Wake up server or Wake up a client. (in new request create step 0).
 
-bool canWriteRequest, hasNewRequest;
+bool canWriteRequest;
+int hasNewRequest;
 int maxPages, clientsLength, lastPage=0;
 
 void* server();
@@ -38,10 +42,11 @@ Request* make_request(int id);
 int main(){
     // Allocating one thread for each line of matrix
     vector< thread > clients;
+
     cin >> maxPages;
     cin >> clientsLength;
 
-    hasNewRequest = false;
+    hasNewRequest = 0;
     canWriteRequest = true;
 
     thread s = thread(server);
@@ -70,44 +75,34 @@ int main(){
 ***/
 void* server(){
 
-    while(true){
+    while(lastPage < maxPages){
           // Waiting a client make a request.
           {
-              unique_lock<mutex> lk(canRequest);
-              createdRequest.wait(lk, []{return hasNewRequest;});
-              hasNewRequest = false;
+              unique_lock<mutex> lk(hasRequest);
+              createdRequest.wait(lk, []{return hasNewRequest--;});
           }
 
-          // Lock threads to not make requests
-          {
-              if(requests.size() >= BUFFER_SIZE){
-                  canWriteRequest = false;
-                  lock_guard<mutex> lkcreate(canCreate);
-              }
-          }
+          // In moment thread be locked waiting my response.
+          Request *r = bufferRequests.front();// requests are processing in FIFO
+          r->pageContent = ++lastPage;
+          printf("[SERVER]: Creating new page %d to client %d\n", lastPage, r->idClient);
+          r->responseReady = true;
+          r->resolveResponse.notify_one();// WAKE UP THREAD because my response is ready
 
+          // Locked waiting thread read response.
+          unique_lock<mutex> read(canRead);
+          r->resolveFinished.wait(read, [&]{return r->responseFinished;});
 
-          // Lock thread to wait my response.
-          {
-                lock_guard<mutex> resp(canProcessing);
-          }
-                Request *r = requests.front();// requests are processing in FIFO
-                r->pageContent = ++lastPage;
-                printf("[SERVER]: Creating new page %d to %d\n", lastPage, r->idClient);
-                r->responseReady = true;
-                r->resolveResponse.notify_all();// WAKE UP THREAD TO READ ..
+          // Clean response
+          bufferRequests.pop_front();
+          printf("[SERVER]: Removing page %d was read by client %d\n", r->pageContent, r->idClient);
+          free(r); // free memory space.
 
-                unique_lock<mutex> read(canRead);
-                r->resolveFinished.wait(read, [&]{return r->responseFinished;});
-
-                requests.pop_front();
-                printf("[SERVER]: Removing page %d free space at buffer %d\n", r->pageContent, r->idBuffer);
-                free(r); // free memory space.
-
-
-          if(requests.size() < BUFFER_SIZE){
+          if(bufferRequests.size() < BUFFER_SIZE-1){
               canWriteRequest = true;
               ableNewRequest.notify_one(); // In case the a thread make one request and no have space..
+          }else{
+              canWriteRequest = false;
           }
 
           if(lastPage == maxPages){
@@ -127,35 +122,32 @@ void* server(){
 ***/
 void* client(int id){
 
-   while(true){
+   while(lastPage < maxPages){
 
-          {
-              lock_guard<mutex> lk(canRequest);
-              hasNewRequest = true;
-          }
-
-          {
-              while(requests.size() >= BUFFER_SIZE){// Impossible have 5 requests... is buffer size!
-                  unique_lock<mutex> lkcreate(canCreate);
-                  ableNewRequest.wait(lkcreate, []{return canWriteRequest;});
-              }
+          // Lock to add new Request on buffer
+          while(bufferRequests.size() >= BUFFER_SIZE){// Impossible have 5 requests... is buffer size!
+              unique_lock<mutex> lkcreate(canCreate);
+              ableNewRequest.wait(lkcreate, []{return canWriteRequest;});
+              hasNewRequest++;
           }
 
           Request* r = make_request(id);
-          requests.push_back(r);
-	        createdRequest.notify_one(); // Make server wake up, to create a page!!!
+          bufferRequests.push_back(r);
 
-          printf("\t[CLIENT]: %d requesting new page at buffer[%d]\n", r->idClient,  r->idBuffer);
+          printf("\t[CLIENT]: %d requesting new page\n", r->idClient);
+          createdRequest.notify_one(); // Wake up SERVER to create a page!!!
 
+          // Lock to wait server response.
           while(r->responseReady == 0){
               unique_lock<mutex> resp(canProcessing);
               r->resolveResponse.wait(resp, [&]{return r->responseReady;});
           }
 
-          lock_guard<mutex> iread(canRead);
-          printf("\t[CLIENT]: %d reading page: %d at buffer[%d]\n", r->idClient, r->pageContent, r->idBuffer);
+          printf("\t[CLIENT]: %d reading page: %d\n", r->idClient, r->pageContent);
+          //cout << "Cliente " << r->idClient << " recebeu a página " << r->pageContent << "\n";
+
           r->responseFinished = true;
-          r->resolveFinished.notify_all();
+          r->resolveFinished.notify_one(); // Wake up SERVER to clean space at buffer.
 
           if(lastPage == maxPages){
               pthread_exit(NULL);
@@ -167,7 +159,7 @@ void* client(int id){
 Request* make_request(int id){
     Request *r = (Request*) malloc(sizeof(Request));
     r->idClient = id;
-    r->idBuffer = requests.size();
+    r->idBuffer = bufferRequests.size();
     r->pageContent = -1;
     r->responseReady = false;
     r->responseFinished = false;
