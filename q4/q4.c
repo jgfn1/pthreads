@@ -10,6 +10,7 @@ int** A;
 int* X;
 int* B;
 
+
 //Number of processors on the machine, thus, number of threads.
 int threads_number; //N
 
