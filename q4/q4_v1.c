@@ -156,6 +156,7 @@ void *jacobi_threaded(void *index)
     /*Variable to store the sum used in the Jacobi Method.*/
     int gama = 0;
 
+
     if(MATRIX_SIZE <= threads_number)
     {
         /*Saves the ID of the thread.*/
