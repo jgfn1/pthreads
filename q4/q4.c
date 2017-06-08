@@ -160,6 +160,5 @@ void *jacobi_threaded(void *index)
     //         }
     //         x[i] = (1/a[i][i]) * (b[i] - gama);
     //     }
-
     // }
 }
