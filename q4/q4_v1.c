@@ -18,6 +18,9 @@ int a[MATRIX_SIZE][MATRIX_SIZE] = {0};
 int x[MATRIX_SIZE] = {INITIAL_GUESS};
 int b[MATRIX_SIZE] = {0};
 
+/**/
+int division_matrix[MATRIX_SIZE][MATRIX_SIZE] = {0};
+
 /*Number of processors on the machine, thus, number of threads.*/
 int threads_number = 0; //N
 
@@ -65,15 +68,50 @@ int main()
         }
     }
 
-    /*Creates all the threads.*/
-    for (i = 0; i < threads_number; ++i) 
-    {
-        if(pthread_create(&thread[i], NULL, jacobi_threaded, (void*) i)){
-            printf("Something went wrong!\n");
-            exit(-1);
+    //Divides the calculus of all x variables between the threads
+     if(MATRIX_SIZE == threads_number)
+     {
+         for (i = 0; i < threads_number; ++i) 
+         {
+             if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
+             {
+                 printf("Something went wrong!\n");
+                 exit(-1);
+             }
+         }
+     }
+     else if(MATRIX_SIZE < threads_number)
+     {
+         for (i = 0; i < MATRIX_SIZE; ++i) 
+         {
+             if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
+             {
+                 printf("Something went wrong!\n");
+                 exit(-1);
+             }
+         }   
+     }
+     else //(MATRIX_SIZE > threads_number)
+     {
+        int aux = MATRIX_SIZE;
+        j = 0;
+        for(i = 0; i < MATRIX_SIZE; ++i)
+        {
+            division_matrix[i%threads_number][j] = i;
+            if( (i+1)%threads_number == 0) 
+                j++;
         }
-    }
 
+        for (i = 0; i < threads_number; ++i) 
+        {
+            if(pthread_create(&thread[i], NULL, jacobi, (void*) &division_matrix[i]))
+            {
+                printf("Something went wrong!\n");
+                exit(-1);
+            }
+        }
+     }  
+          
     /*Wait for all the threads to finish, so the main will only
     do it after them.*/
     pthread_exit(NULL);
@@ -82,8 +120,16 @@ int main()
 
 void *jacobi_threaded(void *index) 
 {
-    /*Saves the ID of the thread.*/
-    int id_thread = (int) index;
+    int* 
+    if(MATRIX_SIZE <= threads_number)
+    {
+        /*Saves the ID of the thread.*/
+        int id_thread = (int) index;
+    }
+    else
+    {
+
+    }
     
     /*Indexes.*/
     int i = 0;
