@@ -55,7 +55,6 @@ int main()
     printf("Insert the number of threads to be created: \n");
     scanf("%d", &threads_number);
     pthread_t *thread = (pthread_t*) malloc(threads_number * sizeof(pthread_t));
-    pthread_barrier_init(&barrier, NULL, threads_number);
     
     /*Assigns values to the matrix in a way that it will be diagonally 
     dominant (minimum requirement of the Jacobi Method).*/
@@ -74,6 +73,7 @@ int main()
     //Divides the calculus of all x variables between the threads
      if(MATRIX_SIZE == threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, threads_number);
          for (i = 0; i < threads_number; ++i) 
          {
              if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
@@ -85,6 +85,7 @@ int main()
      }
      else if(MATRIX_SIZE < threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, MATRIX_SIZE);
          for (i = 0; i < MATRIX_SIZE; ++i) 
          {
              if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
@@ -96,6 +97,7 @@ int main()
      }
      else //(MATRIX_SIZE > threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, threads_number);
         int aux = MATRIX_SIZE;
         j = 0;
         for(i = 0; i < MATRIX_SIZE; ++i)
@@ -126,22 +128,59 @@ int main()
 
 void *jacobi_threaded(void *index) 
 {
-    if(MATRIX_SIZE <= threads_number)
-    {
-        /*Saves the ID of the thread.*/
-        int id_thread = (int) index;
-    }
-    else
-    {
-        int *division_matrix = (int *) index;
-    }
-    
     /*Indexes.*/
     int i = 0;
     int j = 0;
 
     /*Variable to store the sum used in the Jacobi Method.*/
     int gama = 0;
+
+    if(MATRIX_SIZE <= threads_number)
+    {
+        /*Saves the ID of the thread.*/
+        int id_thread = (int) index;
+    
+        i = id_thread;
+
+        while(k < P)
+        {
+            // k++;
+            gama = 0;
+            for (j = 0; j < MATRIX_SIZE; ++j) 
+            {
+                if(j != i) 
+                {
+                    gama = gama + (a[i][j] * (x[j]));
+                }
+            }
+            x[i] = (1/a[i][i]) * (b[i] - gama);
+            pthread_barrier_wait(&barrier);
+        }
+    }
+    else
+    {
+        /*Receives the division matrix*/
+        int *variable_line = (int *) index;
+    }
+
+}    
+
+    // while(k < P)
+    // {
+    //     k++; //REGIAO CRITICA
+    //     for (i = 0; i < MATRIX_SIZE; ++i) //For deve ser alterado, REGIAO CRITICA
+    //     {
+    //         gama = 0;
+    //         for (j = 0; j < MATRIX_SIZE; ++j) 
+    //         {
+    //             if(j != i) 
+    //             {
+    //                 gama = gama + (a[i][j] * (x[j]));
+    //             }
+    //         }
+    //         x[i] = (1/a[i][i]) * (b[i] - gama);
+    //     }
+    // }
 
     /*Accesses the critical region of the counter of 
     refinement iterations.*/
@@ -207,21 +246,3 @@ void *jacobi_threaded(void *index)
     }
     pthread_mutex_unlock(&mutex_x_available);
     pthread_mutex_unlock(&mutex_k);
-
-    // while(k < P)
-    // {
-    //     k++; //REGIAO CRITICA
-    //     for (i = 0; i < MATRIX_SIZE; ++i) //For deve ser alterado, REGIAO CRITICA
-    //     {
-    //         gama = 0;
-    //         for (j = 0; j < MATRIX_SIZE; ++j) 
-    //         {
-    //             if(j != i) 
-    //             {
-    //                 gama = gama + (a[i][j] * (x[j]));
-    //             }
-    //         }
-    //         x[i] = (1/a[i][i]) * (b[i] - gama);
-    //     }
-    // }
-}
