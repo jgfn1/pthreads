@@ -36,15 +36,20 @@ int k = 0;
 /*MUTEX for the access of the k variable.*/
 pthread_mutex_t mutex_k = PTHREAD_MUTEX_INITIALIZER;
 
-void *jacobi_thread(void *index);
+/*Barrier to synchronize the threads after each refinement iteration.*/
+pthread_barrier_t barrier;
+
+void *jacobi_threaded(void *index);
 
 int main() 
 {
     int i = 0;
     int j = 0;
+
     printf("Insert the number of threads to be created: \n");
     scanf("%d", &threads_number);
     pthread_t *thread = (pthread_t*) malloc(threads_number * sizeof(pthread_t));
+    pthread_barrier_init(&barrier, NULL, MATRIX_SIZE);
     
     /*Assigns values to the matrix in a way that it will be diagonally 
     dominant (minimum requirement of the Jacobi Method).*/
@@ -63,7 +68,7 @@ int main()
     /*Creates all the threads.*/
     for (i = 0; i < threads_number; ++i) 
     {
-        if(pthread_create(&thread[i], NULL, jacobi_thread, (void*) i)){
+        if(pthread_create(&thread[i], NULL, jacobi_threaded, (void*) i)){
             printf("Something went wrong!\n");
             exit(-1);
         }
@@ -75,7 +80,7 @@ int main()
     return 0;
 }
 
-void *jacobi_thread(void *index) 
+void *jacobi_threaded(void *index) 
 {
     /*Saves the ID of the thread.*/
     int id_thread = (int) index;
@@ -87,34 +92,35 @@ void *jacobi_thread(void *index)
     /*Variable to store the sum used in the Jacobi Method.*/
     int gama = 0;
 
+    /*Accesses the critical region of the counter of 
+    refinement iterations.*/
+    pthread_mutex_lock(&mutex_k);    
+
     /*Accesses the critical region of the available x's.*/
     pthread_mutex_lock(&mutex_x_available);
-    while(x_available < MATRIX_SIZE)
-    {
-        i = x_available;
-        x_available++;
-        pthread_mutex_unlock(&mutex_x_available);
-
-        gama = 0;
-        for (j = 0; j < MATRIX_SIZE; ++j) 
-        {
-            if(j != i) 
-            {
-                gama = gama + (a[i][j] * (x[j]));
-            }
-        }
-        x[i] = (1/a[i][i]) * (b[i] - gama);
-
-        pthread_mutex_lock(&mutex_x_available);    
-    }
-    pthread_mutex_unlock(&mutex_x_available);
-
-
+    
+    /*Outer loop for the refinement iterations.*/
     while(k < P)
     {
-        k++; //REGIAO CRITICA
-        for (i = 0; i < MATRIX_SIZE; ++i) //For deve ser alterado, REGIAO CRITICA
+        k++;
+        x_available = 0; //Restart the counter.
+        pthread_mutex_unlock(&mutex_k);
+        
+        // pthread_mutex_unlock(&mutex_x_available);
+
+        // Accesses the critical region of the available x's.
+        // pthread_mutex_lock(&mutex_x_available);
+
+        /*Checks if there are x's to be calculated, if yes, assign
+        it to the i index, increments the x_available counter and do 
+        the math, otherwise, unlocks the mutex and proceed to the next 
+        refinement iteration.*/
+        while(x_available < MATRIX_SIZE)
         {
+            i = x_available;
+            x_available++;
+            pthread_mutex_unlock(&mutex_x_available);
+
             gama = 0;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
@@ -124,7 +130,36 @@ void *jacobi_thread(void *index)
                 }
             }
             x[i] = (1/a[i][i]) * (b[i] - gama);
-        }
 
+            pthread_mutex_lock(&mutex_x_available);    
+        }
+        pthread_mutex_unlock(&mutex_x_available);
+        
+        /*Synchronize the threads until all x's have been
+        calculated.*/
+        pthread_barrier_wait(&barrier);
+
+        pthread_mutex_lock(&mutex_k);
+        pthread_mutex_lock(&mutex_x_available);
     }
+    pthread_mutex_unlock(&mutex_k);
+    pthread_mutex_unlock(&mutex_x_available);
+
+    // while(k < P)
+    // {
+    //     k++; //REGIAO CRITICA
+    //     for (i = 0; i < MATRIX_SIZE; ++i) //For deve ser alterado, REGIAO CRITICA
+    //     {
+    //         gama = 0;
+    //         for (j = 0; j < MATRIX_SIZE; ++j) 
+    //         {
+    //             if(j != i) 
+    //             {
+    //                 gama = gama + (a[i][j] * (x[j]));
+    //             }
+    //         }
+    //         x[i] = (1/a[i][i]) * (b[i] - gama);
+    //     }
+
+    // }
 }
