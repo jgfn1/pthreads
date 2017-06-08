@@ -21,6 +21,9 @@ int b[MATRIX_SIZE] = {0};
 /**/
 int division_matrix[MATRIX_SIZE][MATRIX_SIZE] = {0};
 
+/**/
+int line_queue_size[MATRIX_SIZE];
+
 /*Number of processors on the machine, thus, number of threads.*/
 int threads_number = 0; //N
 
@@ -98,8 +101,11 @@ int main()
         for(i = 0; i < MATRIX_SIZE; ++i)
         {
             division_matrix[i%threads_number][j] = i;
-            if( (i+1)%threads_number == 0) 
+            if( (i + 1) % threads_number == 0 )
+            {
+                line_queue_size[i] = 
                 j++;
+            }
         }
 
         for (i = 0; i < threads_number; ++i) 
@@ -120,7 +126,6 @@ int main()
 
 void *jacobi_threaded(void *index) 
 {
-    int* 
     if(MATRIX_SIZE <= threads_number)
     {
         /*Saves the ID of the thread.*/
