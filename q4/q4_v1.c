@@ -183,66 +183,66 @@ void *jacobi_threaded(void *index)
     // }
 
     /*Accesses the critical region of the counter of 
-    refinement iterations.*/
-    pthread_mutex_lock(&mutex_k);    
+    // refinement iterations.*/
+    // pthread_mutex_lock(&mutex_k);    
 
-    /*Accesses the critical region of the available x's.*/
-    pthread_mutex_lock(&mutex_x_available);
+    // /*Accesses the critical region of the available x's.*/
+    // pthread_mutex_lock(&mutex_x_available);
     
-    cond = true;
+    // cond = true;
 
-    /*Outer loop for the refinement iterations.*/
-    while(k < P)
-    {
-        printf("k: %d\n", k);
-        printf("Thread: %d| Loop 1.\n", id_thread);
-        if(cond == true)
-        {
-            cond = false;
-            k++;
-            x_available = 0; //Restart the counter.
-        }
-        pthread_mutex_unlock(&mutex_x_available);
+    // /*Outer loop for the refinement iterations.*/
+    // while(k < P)
+    // {
+    //     printf("k: %d\n", k);
+    //     printf("Thread: %d| Loop 1.\n", id_thread);
+    //     if(cond == true)
+    //     {
+    //         cond = false;
+    //         k++;
+    //         x_available = 0; //Restart the counter.
+    //     }
+    //     pthread_mutex_unlock(&mutex_x_available);
         
-        pthread_mutex_unlock(&mutex_k);
+    //     pthread_mutex_unlock(&mutex_k);
 
-        /*Accesses the critical region of the available x's.*/
-        pthread_mutex_lock(&mutex_x_available);
+    //     /*Accesses the critical region of the available x's.*/
+    //     pthread_mutex_lock(&mutex_x_available);
 
-        /*Checks if there are x's to be calculated, if yes, assign
-        it to the i index, increments the x_available counter and do 
-        the math, otherwise, unlocks the mutex and proceed to the next 
-        refinement iteration.*/
-        while(x_available < MATRIX_SIZE)
-        {
-            printf("Thread: %d | Loop 2.\n", id_thread);
-            i = x_available;
-            x_available++;
-            pthread_mutex_unlock(&mutex_x_available);
+    //     /*Checks if there are x's to be calculated, if yes, assign
+    //     it to the i index, increments the x_available counter and do 
+    //     the math, otherwise, unlocks the mutex and proceed to the next 
+    //     refinement iteration.*/
+    //     while(x_available < MATRIX_SIZE)
+    //     {
+    //         printf("Thread: %d | Loop 2.\n", id_thread);
+    //         i = x_available;
+    //         x_available++;
+    //         pthread_mutex_unlock(&mutex_x_available);
 
-            gama = 0;
-            for (j = 0; j < MATRIX_SIZE; ++j) 
-            {
-                if(j != i) 
-                {
-                    gama = gama + (a[i][j] * (x[j]));
-                }
-            }
-            x[i] = (1/a[i][i]) * (b[i] - gama);
+    //         gama = 0;
+    //         for (j = 0; j < MATRIX_SIZE; ++j) 
+    //         {
+    //             if(j != i) 
+    //             {
+    //                 gama = gama + (a[i][j] * (x[j]));
+    //             }
+    //         }
+    //         x[i] = (1/a[i][i]) * (b[i] - gama);
 
-            pthread_mutex_lock(&mutex_x_available);    
-        }
-        pthread_mutex_unlock(&mutex_x_available);
-        /*Synchronize the threads until all x's have been
-        calculated.*/
-        printf("Thread %d has finished.\n", id_thread);
-        pthread_barrier_wait(&barrier);
-        if(cond == true)
+    //         pthread_mutex_lock(&mutex_x_available);    
+    //     }
+    //     pthread_mutex_unlock(&mutex_x_available);
+    //     /*Synchronize the threads until all x's have been
+    //     calculated.*/
+    //     printf("Thread %d has finished.\n", id_thread);
+    //     pthread_barrier_wait(&barrier);
+    //     if(cond == true)
         
-        printf("All threads free to start again.\n");
+    //     printf("All threads free to start again.\n");
 
-        pthread_mutex_lock(&mutex_k);
-        pthread_mutex_lock(&mutex_x_available);
-    }
-    pthread_mutex_unlock(&mutex_x_available);
-    pthread_mutex_unlock(&mutex_k);
+    //     pthread_mutex_lock(&mutex_k);
+    //     pthread_mutex_lock(&mutex_x_available);
+    // }
+    // pthread_mutex_unlock(&mutex_x_available);
+    // pthread_mutex_unlock(&mutex_k);
