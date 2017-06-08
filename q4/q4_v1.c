@@ -11,7 +11,7 @@
 #define P 10
 
 /*Row & column size of A and the column size of x and b*/
-#define MATRIX_SIZE 3
+#define MATRIX_SIZE 2
 
 /*Initializes the matrixes.*/
 int a[MATRIX_SIZE][MATRIX_SIZE] = {0};
@@ -27,12 +27,12 @@ int line_queue_size[MATRIX_SIZE];
 /*Number of processors on the machine, thus, number of threads.*/
 int threads_number = 0; //N
 
-/*Index of the next x available to be gotten by a thread, in other words,
-this is one of the critical regions.*/
-int x_available = 0;
+/*Variable that will guarantee that the loop counter will only 
+incrmement one time per iteration, this is one of the critical regions.*/
+int ignore = 0;
 
-/*MUTEX for the access of the x_available variable.*/
-pthread_mutex_t mutex_x_available = PTHREAD_MUTEX_INITIALIZER;
+/*MUTEX for the access of the ignore variable.*/
+pthread_mutex_t mutex_ignore = PTHREAD_MUTEX_INITIALIZER;
 
 /*Counter for the number of refinements to be made, this is also a critical
 region because all the threads will access it to increment its value and
@@ -55,7 +55,6 @@ int main()
     printf("Insert the number of threads to be created: \n");
     scanf("%d", &threads_number);
     pthread_t *thread = (pthread_t*) malloc(threads_number * sizeof(pthread_t));
-    pthread_barrier_init(&barrier, NULL, threads_number);
     
     /*Assigns values to the matrix in a way that it will be diagonally 
     dominant (minimum requirement of the Jacobi Method).*/
@@ -74,6 +73,7 @@ int main()
     //Divides the calculus of all x variables between the threads
      if(MATRIX_SIZE == threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, threads_number);
          for (i = 0; i < threads_number; ++i) 
          {
              if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
@@ -85,6 +85,7 @@ int main()
      }
      else if(MATRIX_SIZE < threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, MATRIX_SIZE);
          for (i = 0; i < MATRIX_SIZE; ++i) 
          {
              if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
@@ -96,6 +97,7 @@ int main()
      }
      else //(MATRIX_SIZE > threads_number)
      {
+        pthread_barrier_init(&barrier, NULL, threads_number);
         int aux = MATRIX_SIZE;
         j = 0;
         for(i = 0; i < MATRIX_SIZE; ++i)
@@ -126,16 +128,6 @@ int main()
 
 void *jacobi_threaded(void *index) 
 {
-    if(MATRIX_SIZE <= threads_number)
-    {
-        /*Saves the ID of the thread.*/
-        int id_thread = (int) index;
-    }
-    else
-    {
-        int *division_matrix = (int *) index;
-    }
-    
     /*Indexes.*/
     int i = 0;
     int j = 0;
@@ -143,45 +135,17 @@ void *jacobi_threaded(void *index)
     /*Variable to store the sum used in the Jacobi Method.*/
     int gama = 0;
 
-    /*Accesses the critical region of the counter of 
-    refinement iterations.*/
-    pthread_mutex_lock(&mutex_k);    
-
-    /*Accesses the critical region of the available x's.*/
-    pthread_mutex_lock(&mutex_x_available);
-    
-    cond = true;
-
-    /*Outer loop for the refinement iterations.*/
-    while(k < P)
+    if(MATRIX_SIZE <= threads_number)
     {
-        printf("k: %d\n", k);
-        printf("Thread: %d| Loop 1.\n", id_thread);
-        if(cond == true)
+        /*Saves the ID of the thread.*/
+        int id_thread = (int) index;
+    
+        i = id_thread;
+
+        while(k < P)
         {
-            cond = false;
-            k++;
-            x_available = 0; //Restart the counter.
-        }
-        pthread_mutex_unlock(&mutex_x_available);
-        
-        pthread_mutex_unlock(&mutex_k);
-
-        /*Accesses the critical region of the available x's.*/
-        pthread_mutex_lock(&mutex_x_available);
-
-        /*Checks if there are x's to be calculated, if yes, assign
-        it to the i index, increments the x_available counter and do 
-        the math, otherwise, unlocks the mutex and proceed to the next 
-        refinement iteration.*/
-        while(x_available < MATRIX_SIZE)
-        {
-            printf("Thread: %d | Loop 2.\n", id_thread);
-            i = x_available;
-            x_available++;
-            pthread_mutex_unlock(&mutex_x_available);
-
             gama = 0;
+            ignore = 1;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
                 if(j != i) 
@@ -190,38 +154,21 @@ void *jacobi_threaded(void *index)
                 }
             }
             x[i] = (1/a[i][i]) * (b[i] - gama);
-
-            pthread_mutex_lock(&mutex_x_available);    
+            pthread_barrier_wait(&barrier);
+           
+            /*Critical region that can only be accessed by one thread
+            at each loop iteration>*/
+            if(ignore == 0)
+            {
+                ignore = 1;
+                k++;
+            }
         }
-        pthread_mutex_unlock(&mutex_x_available);
-        /*Synchronize the threads until all x's have been
-        calculated.*/
-        printf("Thread %d has finished.\n", id_thread);
-        pthread_barrier_wait(&barrier);
-        if(cond == true)
-        
-        printf("All threads free to start again.\n");
-
-        pthread_mutex_lock(&mutex_k);
-        pthread_mutex_lock(&mutex_x_available);
     }
-    pthread_mutex_unlock(&mutex_x_available);
-    pthread_mutex_unlock(&mutex_k);
+    else
+    {
+        /*Receives the division matrix*/
+        int *variable_line = (int *) index;
+    }
 
-    // while(k < P)
-    // {
-    //     k++; //REGIAO CRITICA
-    //     for (i = 0; i < MATRIX_SIZE; ++i) //For deve ser alterado, REGIAO CRITICA
-    //     {
-    //         gama = 0;
-    //         for (j = 0; j < MATRIX_SIZE; ++j) 
-    //         {
-    //             if(j != i) 
-    //             {
-    //                 gama = gama + (a[i][j] * (x[j]));
-    //             }
-    //         }
-    //         x[i] = (1/a[i][i]) * (b[i] - gama);
-    //     }
-    // }
 }
