@@ -56,13 +56,13 @@ int main()
     {
         x[i] = 1;
     }
-
+/*
     printf("\n");
     for(i = 0; i < MATRIX_SIZE; ++i)
     {
         printf("x[%d]: %d\n", i, x[i]);
     }
-    printf("\n");    
+    printf("\n");*/    
 
     printf("Insert the number of threads to be created: \n");
     scanf("%d", &threads_number);
@@ -126,7 +126,13 @@ int main()
         }
      }  
     
-    printf("\n");
+    for (i = 0; i < threads_number; ++i) 
+    {
+        pthread_join(thread[i], NULL);
+        
+    }
+
+    printf("\nLinear System Solution:\n");
     for(i = 0; i < MATRIX_SIZE; ++i)
     {
         printf("x[%d]: %d\n", i, x[i]);
@@ -159,7 +165,7 @@ void *jacobi_threaded(void *index)
 
         while(k < P)
         {
-            printf("break; | ID: %d | k: %d\n", i, k);
+            // printf("break; | ID: %d | k: %d\n", i, k);
             gama = 0;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
@@ -196,7 +202,7 @@ void *jacobi_threaded(void *index)
 
         while(k < P)
         {
-            printf("break; | ID: %d | k: %d\n", i, k);        
+            // printf("break; | ID: %d | k: %d\n", i, k);        
             /*Each thread will calculate it's given number of variables
             per iteration.*/
             for(counter = 0; counter < variable_line_size[i]; ++counter)
