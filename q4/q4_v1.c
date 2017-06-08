@@ -15,14 +15,14 @@
 
 /*Initializes the matrixes.*/
 int a[MATRIX_SIZE][MATRIX_SIZE] = {0};
-int x[MATRIX_SIZE] = {INITIAL_GUESS};
+int x[MATRIX_SIZE] = {0};
 int b[MATRIX_SIZE] = {0};
 
 /*Matrix created to store the assigned variables for each thread.*/
 int division_matrix[MATRIX_SIZE][MATRIX_SIZE] = {0};
 
 /*Vector that stores the size of each division_matrix line.*/
-int line_queue_size[MATRIX_SIZE];
+int variable_line_size[MATRIX_SIZE];
 
 /*Number of processors on the machine, thus, number of threads.*/
 int threads_number = 0; //N
@@ -52,6 +52,18 @@ int main()
     int i = 0;
     int j = 0;
 
+    for(i = 0; i < MATRIX_SIZE; ++i)
+    {
+        x[i] = 1;
+    }
+
+    printf("\n");
+    for(i = 0; i < MATRIX_SIZE; ++i)
+    {
+        printf("x[%d]: %d\n", i, x[i]);
+    }
+    printf("\n");    
+
     printf("Insert the number of threads to be created: \n");
     scanf("%d", &threads_number);
     pthread_t *thread = (pthread_t*) malloc(threads_number * sizeof(pthread_t));
@@ -70,7 +82,7 @@ int main()
         pthread_barrier_init(&barrier, NULL, threads_number);
          for (i = 0; i < threads_number; ++i) 
          {
-             if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
+             if(pthread_create(&thread[i], NULL, jacobi_threaded, (void*) i))
              {
                  printf("Something went wrong!\n");
                  exit(-1);
@@ -82,7 +94,7 @@ int main()
         pthread_barrier_init(&barrier, NULL, MATRIX_SIZE);
          for (i = 0; i < MATRIX_SIZE; ++i) 
          {
-             if(pthread_create(&thread[i], NULL, jacobi, (void*) i))
+             if(pthread_create(&thread[i], NULL, jacobi_threaded, (void*) i))
              {
                  printf("Something went wrong!\n");
                  exit(-1);
@@ -99,24 +111,32 @@ int main()
             division_matrix[i % threads_number][j] = i;
             if( (i + 1) % threads_number == 0 )
             {
-                line_queue_size[i] = j;
+                variable_line_size[i] = j;
                 j++;
             }
         }
 
         for (i = 0; i < threads_number; ++i) 
         {
-            if(pthread_create(&thread[i], NULL, jacobi, (void*) &division_matrix[i]))
+            if(pthread_create(&thread[i], NULL, jacobi_threaded, (void*) &division_matrix[i]))
             {
                 printf("Something went wrong!\n");
                 exit(-1);
             }
         }
      }  
-          
+    
+    printf("\n");
+    for(i = 0; i < MATRIX_SIZE; ++i)
+    {
+        printf("x[%d]: %d\n", i, x[i]);
+    }
+    printf("\n");     
+        
     /*Wait for all the threads to finish, so the main will only
     do it after them.*/
     pthread_exit(NULL);
+    
     return 0;
 }
 
@@ -139,6 +159,7 @@ void *jacobi_threaded(void *index)
 
         while(k < P)
         {
+            printf("break; | ID: %d | k: %d\n", i, k);
             gama = 0;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
@@ -171,12 +192,16 @@ void *jacobi_threaded(void *index)
         /*Receives the division matrix*/
         int *variable_line = (int *) index;
         i = variable_line[0];
+
+
         while(k < P)
         {
+            printf("break; | ID: %d | k: %d\n", i, k);        
             /*Each thread will calculate it's given number of variables
             per iteration.*/
-            for(counter = 0; counter < i; ++1)
+            for(counter = 0; counter < variable_line_size[i]; ++counter)
             {
+                i = variable_line[counter];
                 gama = 0;
                 for (j = 0; j < MATRIX_SIZE; ++j) 
                 {
@@ -205,5 +230,5 @@ void *jacobi_threaded(void *index)
             }
         }
     }
-
+    printf("Thread %d acabou.\n", i);
 }
