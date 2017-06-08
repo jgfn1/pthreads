@@ -18,10 +18,10 @@ int a[MATRIX_SIZE][MATRIX_SIZE] = {0};
 int x[MATRIX_SIZE] = {INITIAL_GUESS};
 int b[MATRIX_SIZE] = {0};
 
-/**/
+/*Matrix created to store the assigned variables for each thread.*/
 int division_matrix[MATRIX_SIZE][MATRIX_SIZE] = {0};
 
-/**/
+/*Vector that stores the size of each division_matrix line.*/
 int line_queue_size[MATRIX_SIZE];
 
 /*Number of processors on the machine, thus, number of threads.*/
@@ -56,19 +56,13 @@ int main()
     scanf("%d", &threads_number);
     pthread_t *thread = (pthread_t*) malloc(threads_number * sizeof(pthread_t));
     
-    /*Assigns values to the matrix in a way that it will be diagonally 
-    dominant (minimum requirement of the Jacobi Method).*/
-    for (i = 0; i < MATRIX_SIZE; ++i)
-    {
-        b[i] = i + 1;
-        for(j = 0 ; j < MATRIX_SIZE; ++j)
-        {
-            if(i == j)
-                a[i][j] = (3 * (i + j)) + MATRIX_SIZE; 
-            else 
-                a[i][j] = i + j;
-        }
-    }
+    /*Assigns arbitrary values to the matrixes.*/
+    a[0][0] = 2;
+    a[0][1] = 1;
+    a[1][0] = 5;
+    a[1][1] = 7;
+    b[0] = 11;
+    b[1] = 13;
 
     //Divides the calculus of all x variables between the threads
      if(MATRIX_SIZE == threads_number)
@@ -131,6 +125,7 @@ void *jacobi_threaded(void *index)
     /*Indexes.*/
     int i = 0;
     int j = 0;
+    int counter;
 
     /*Variable to store the sum used in the Jacobi Method.*/
     int gama = 0;
@@ -145,7 +140,6 @@ void *jacobi_threaded(void *index)
         while(k < P)
         {
             gama = 0;
-            ignore = 1;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
                 if(j != i) 
@@ -154,21 +148,62 @@ void *jacobi_threaded(void *index)
                 }
             }
             x[i] = (1/a[i][i]) * (b[i] - gama);
+            
+            pthread_barrier_wait(&barrier);
+            ignore = 0;
             pthread_barrier_wait(&barrier);
            
             /*Critical region that can only be accessed by one thread
-            at each loop iteration>*/
+            at each loop iteration.*/
+            pthread_mutex_lock(&mutex_k);
+            pthread_mutex_lock(&mutex_ignore);
             if(ignore == 0)
             {
                 ignore = 1;
                 k++;
             }
+            pthread_mutex_unlock(&mutex_ignore);
+            pthread_mutex_unlock(&mutex_k);
         }
     }
     else
     {
         /*Receives the division matrix*/
         int *variable_line = (int *) index;
+        i = variable_line[0];
+        while(k < P)
+        {
+            /*Each thread will calculate it's given number of variables
+            per iteration.*/
+            for(counter = 0; counter < i; ++1)
+            {
+                gama = 0;
+                for (j = 0; j < MATRIX_SIZE; ++j) 
+                {
+                    if(j != i) 
+                    {
+                        gama = gama + (a[i][j] * (x[j]));
+                    }
+                }
+                x[i] = (1/a[i][i]) * (b[i] - gama);
+                
+                pthread_barrier_wait(&barrier);
+                ignore = 0;
+                pthread_barrier_wait(&barrier);
+               
+                /*Critical region that can only be accessed by one thread
+                at each loop iteration.*/
+                pthread_mutex_lock(&mutex_k);
+                pthread_mutex_lock(&mutex_ignore);
+                if(ignore == 0)
+                {
+                    ignore = 1;
+                    k++;
+                }
+                pthread_mutex_unlock(&mutex_ignore);
+                pthread_mutex_unlock(&mutex_k);
+            }
+        }
     }
 
 }
