@@ -102,6 +102,7 @@ void *jacobi_threaded(void *index)
     /*Outer loop for the refinement iterations.*/
     while(k < P)
     {
+        printf("Loop 1.\n");
         k++;
         x_available = 0; //Restart the counter.
         pthread_mutex_unlock(&mutex_k);
@@ -117,6 +118,7 @@ void *jacobi_threaded(void *index)
         refinement iteration.*/
         while(x_available < MATRIX_SIZE)
         {
+            printf("Loop 2.\n");
             i = x_available;
             x_available++;
             pthread_mutex_unlock(&mutex_x_available);
