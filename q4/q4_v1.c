@@ -100,10 +100,10 @@ int main()
         j = 0;
         for(i = 0; i < MATRIX_SIZE; ++i)
         {
-            division_matrix[i%threads_number][j] = i;
+            division_matrix[i % threads_number][j] = i;
             if( (i + 1) % threads_number == 0 )
             {
-                line_queue_size[i] = 
+                line_queue_size[i] = j;
                 j++;
             }
         }
@@ -133,7 +133,7 @@ void *jacobi_threaded(void *index)
     }
     else
     {
-
+        int *division_matrix = (int *) index;
     }
     
     /*Indexes.*/
