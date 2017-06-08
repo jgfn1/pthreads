@@ -144,7 +144,6 @@ void *jacobi_threaded(void *index)
 
         while(k < P)
         {
-            // k++;
             gama = 0;
             for (j = 0; j < MATRIX_SIZE; ++j) 
             {
@@ -155,6 +154,7 @@ void *jacobi_threaded(void *index)
             }
             x[i] = (1/a[i][i]) * (b[i] - gama);
             pthread_barrier_wait(&barrier);
+            k++;
         }
     }
     else
