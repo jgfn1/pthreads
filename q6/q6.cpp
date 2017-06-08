@@ -4,6 +4,7 @@
 	* @since 13/11/16
 	*
 */
+// #include <bits/stdc++.h>
 #include "stdc++.h"
 
 #define MAX_QUEUE_SIZE 5
@@ -57,30 +58,49 @@ void condWait(pthread_cond_t * condAddr, pthread_mutex_t * mutexAddr){ pthread_c
 void signal(pthread_cond_t *condAddr){ pthread_cond_signal(condAddr); }
 bool tryLock(pthread_mutex_t * mutexAddr){ return pthread_mutex_trylock(mutexAddr) == 0; }
 //void barrierWait(pthread_barrier_t * barrierAddr){ pthread_barrier_wait(barrierAddr); }
-void* track();
-void* sensor(int id);
+void* track(void* arg);
+void* sensor(void* arg);
+void* newIndex(int id){
+  int *p = (int*) malloc(sizeof(int));
+  *p = id;
+  printf("Making %d\n", *p);
+  return p;
+}
 void putInQueue(Queue *q, int elements);
 Queue * getQueue();
-
+Queue *makeQueue(int id);
+pthread_t * makeThread();
 
 
 
 int main(){
 	// Allocating one thread for each line of matrix
-  int nt, ns;
-	vector< pthread_t > ttracks;
-  vector< pthread_t > tsensors;
+  int nt, ns,i,j;
+  pthread_t* tmpThread;
+  Queue* tmpQueue;
+	vector< pthread_t* > ttracks;
+  vector< pthread_t* > tsensors;
   cin >> nt >> ns;
 
-  for(int i=0; i<ns; i++){
-      pthread_t tmp;
-      if(pthread_create(&tmp, NULL,sensor, i) == 0)
-          tsensors.push_back(tmp);
+  for(i=0; i<ns; i++){
+      tmpThread = makeThread();
+      tmpQueue = makeQueue(i);
+
+      if(pthread_create(tmpThread, NULL, sensor, newIndex(i)) == 0){
+          // Adding thread
+          tsensors.push_back(tmpThread);
+          // Adding queues to this sensor
+          AirportQueues.push_back(tmpQueue);
+          AirportQueuesInOrder.push(tmpQueue);
+      }
+
   }
-  for(int i=0; i<nt; i++) {
-      pthread_t tmp;
-      if(pthread_create(&tmp, NULL,track,NULL) == 0)
-          ttracks.push_back(tmp);
+  for(int j=0; j<nt; j++) {
+      tmpThread = makeThread();
+      if(pthread_create(tmpThread, NULL, track, NULL) == 0)
+          ttracks.push_back(tmpThread);
+      //cout << " here 2" << endl;
+      printf("here2");
   }
 
   pthread_exit(NULL);
@@ -93,8 +113,8 @@ int main(){
   *	This function build pages and serve on buffer.
   *
 ***/
-void* track(){
-
+void* track(void* arg){
+  cout << " I'm tracker " << endl;
 	Queue *shortQueue = getQueue();
 
 	lock(&shortQueue->mtxCanUseQueue);
@@ -116,11 +136,18 @@ void* track(){
   *
 ***/
 
-void* sensor(int id){
+void* sensor(void* arg){//int id
+  //cout << " I'm sensor " << id << endl;
+  //printf("uhaehuaeha\n");
+  int *dd = (int*) arg;
+  int id = *dd;
+  //printf("truth\n");
 	int amountLuggagePassed = 0;
+  //pthread_exit(NULL);
 	while(true){
+    printf("Sensor id: %d\n", id);
 		Queue *myQueue = AirportQueues[id];
-
+    printf("My queue is: %d\n", myQueue->id);
 		lock(&myQueue->mtxCanUseQueue);
 		while(myQueue->size == 0){
 			signal(&myQueue->cndQueueEmpty); // Acordará alguma esteira se estiver bloqueada para escrever na queue...
@@ -140,6 +167,7 @@ void* sensor(int id){
 			}
 
 			amountEnableSensors--;
+
 			//barrierWait(A_BARREIRA_DE_MANUTENCAO);
 			amountEnableSensors++;
 			amountLuggagePassed = 0;
@@ -206,3 +234,15 @@ void putInQueue(Queue *q, int elements){
 	unlock(&mtxAirportQueues);
 }
 
+Queue *makeQueue(int id){
+    Queue *q = (Queue*) malloc (sizeof(Queue));
+    q->id = id;
+    q->size = 0;
+    //q->mtxCanUseQueue = PTHREAD_MUTEX_INITIALIZER;
+    return q;
+}
+
+pthread_t * makeThread(){
+    pthread_t *t = (pthread_t*) malloc (sizeof(pthread_t));
+    return t;
+}
