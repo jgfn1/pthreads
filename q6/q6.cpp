@@ -4,11 +4,13 @@
 	* @since 13/11/16
 	*
 */
-// #include <bits/stdc++.h>
-#include "stdc++.h"
+#include <bits/stdc++.h>
+#include <unistd.h>
+// #include "stdc++.h"
 
 #define MAX_QUEUE_SIZE 5
 #define MAX_LUGGAGE 10
+#define TRACK_SIZE 10
 
 using namespace std;
 
@@ -99,8 +101,6 @@ int main(){
       tmpThread = makeThread();
       if(pthread_create(tmpThread, NULL, track, NULL) == 0)
           ttracks.push_back(tmpThread);
-      //cout << " here 2" << endl;
-      printf("here2");
   }
 
   pthread_exit(NULL);
@@ -114,17 +114,23 @@ int main(){
   *
 ***/
 void* track(void* arg){
-  cout << " I'm tracker " << endl;
-	Queue *shortQueue = getQueue();
+  int trackItens = TRACK_SIZE;
 
-	lock(&shortQueue->mtxCanUseQueue);
+  while(trackItens > 0){
+    	Queue *shortQueue = getQueue();
 
-	while(shortQueue->size == MAX_QUEUE_SIZE){
-		condWait(&shortQueue->cndQueueEmpty, &shortQueue->mtxCanUseQueue);
-	}
+    	lock(&shortQueue->mtxCanUseQueue);
 
+    	while(shortQueue->size == MAX_QUEUE_SIZE){
+    		condWait(&shortQueue->cndQueueEmpty, &shortQueue->mtxCanUseQueue);
+    	}
 
+      printf(" Track X removing item.\n");
+      shortQueue->size++;
+      trackItens--;
 
+      unlock(&shortQueue->mtxCanUseQueue);
+    }
 	pthread_exit(NULL);
 }
 
