@@ -9,8 +9,8 @@
 // #include "stdc++.h"
 
 #define MAX_LUGGAGES_AT_QUEUE 5
-#define MAX_SENSOR_LUGGAGES 200
-#define TRACK_LUGGAGES 300
+#define MAX_SENSOR_LUGGAGES 2
+#define TRACK_LUGGAGES 10
 
 using namespace std;
 
@@ -42,6 +42,8 @@ vector<Queue*> AirportQueues; // each index is ID of sensor.
 priority_queue<Queue*, vector<Queue*>, CompareQueue> AirportQueuesInOrder;
 pthread_mutex_t mtxAirportQueues;
 
+pthread_barrier_t barrierMaintenance;
+pthread_mutex_t mtxBarrierZoneSync;
 
 // Variáveis do buffer de realocação
 int bufferRealloc;
@@ -52,7 +54,6 @@ pthread_cond_t bufferFill, bufferEmpty;
 int amountEnableSensors;
 
 // Variáveis para manutenção
-//pthread_barrier_t barrierMaintenance;
 
 void lock(pthread_mutex_t * mutexAddr){ pthread_mutex_lock(mutexAddr); }
 void unlock(pthread_mutex_t * mutexAddr){ pthread_mutex_unlock(mutexAddr); }
@@ -80,7 +81,7 @@ int main(){
   cin >> nt >> ns;
 
   amountEnableSensors = ns;
-
+  pthread_barrier_init (&barrierMaintenance, NULL, ns);
   // Adding luggages in queues
   for(int i=0; i<ns; i++){
       tmpQueue = makeQueue(i);
@@ -130,13 +131,11 @@ void* track(void* arg){
           shortQueue->size++;
           trackItens--;
 
-          if(trackItens == 0){
-              printf("[ESTEIRA %d]: coloquei na fila %d me restam [%d]\n", id, shortQueue->id, trackItens);
-          }
           signal(&shortQueue->cndQueueFill);
           unlock(&shortQueue->mtxCanUseQueue);
       }
     }
+    //printf("I FINISHED %d\n", id);
 	pthread_exit(NULL);
 }
 
@@ -171,30 +170,33 @@ void* sensor(void* arg){//int id
   		myQueue->size--;
       amountLuggagePassed++;
   		usleep(1);
-      if(myQueue->size < 0){
-          printf("pqp \n");
-      }
+
   		if(amountLuggagePassed == MAX_SENSOR_LUGGAGES){// Se liga na porra da manutenção...
-                      printf("!!!! [SENSOR %d]: going to maintenance !!! %d\n", id, myQueue->size);
+                      printf("!!!! [SENSOR %d]: %d luggages passed - going to maintenance !!!\n", id, amountLuggagePassed);
                 			Queue *t = getQueue();
                 			if(t != NULL && t->id != -1){
                          //TSTprintf(" _________ REALLOC LUGAGGES _________ \n");
                 				 putInQueue(t, myQueue->size);
                 				// Será que vai caber tudo? tenho que mandar um por um ensse carai
-
                 			}
 
-                			amountEnableSensors--;
+                      lock(&mtxBarrierZoneSync);
+                			   amountEnableSensors--;
+                      unlock(&mtxBarrierZoneSync);
                       if(amountEnableSensors == 0){
                           printf(" *******  !!!!  ALL SENSORS GOING TO maintenance !!!!! ******** \n");
-                    			//barrierWait(A_BARREIRA_DE_MANUTENCAO);
-
-                    			amountEnableSensors++;
-                    			amountLuggagePassed = 0;
                       }
+                      pthread_barrier_wait(&barrierMaintenance);
+
+                      lock(&mtxBarrierZoneSync);
+                        amountLuggagePassed = 0;
+                        amountEnableSensors++;
+                      unlock(&mtxBarrierZoneSync);
+
+                      unlock(&myQueue->mtxCanUseQueue);
   		}else{
+        unlock(&myQueue->mtxCanUseQueue); // Para que minha fila já possa ser usada por alguma esteira..
           //TSTprintf("[SENSOR %d]: passed to me a laggage\n", id);
-    			unlock(&myQueue->mtxCanUseQueue); // Para que minha fila já possa ser usada por alguma esteira..
   		}
 
       signal(&myQueue->cndQueueEmpty);
@@ -244,13 +246,11 @@ Queue * getQueue(){
 }
 
 void putInQueue(Queue *q, int luggages){
-  printf("[WARN] at put in queue %d total of %d luggages [WARN]\n", q->id, luggages);
+  //TSTprintf("[WARN] at put in queue %d total of %d luggages [WARN]\n", q->id, luggages);
 	//lock(&mtxAirportQueues);
 	//lock(&q->mtxCanUseQueue);
 
 	q->size += luggages;
-
-  printf("New size %d\n", q->size);
 
   // "atualizando da pior forma a queues in order"
   Queue refresh;
