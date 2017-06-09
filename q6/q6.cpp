@@ -8,9 +8,9 @@
 #include <unistd.h>
 // #include "stdc++.h"
 
-#define MAX_QUEUE_SIZE 5
-#define MAX_LUGGAGE 10
-#define TRACK_SIZE 10
+#define MAX_LUGGAGES_AT_QUEUE 5
+#define MAX_SENSOR_LUGGAGES 200
+#define TRACK_LUGGAGES 300
 
 using namespace std;
 
@@ -62,13 +62,8 @@ bool tryLock(pthread_mutex_t * mutexAddr){ return pthread_mutex_trylock(mutexAdd
 //void barrierWait(pthread_barrier_t * barrierAddr){ pthread_barrier_wait(barrierAddr); }
 void* track(void* arg);
 void* sensor(void* arg);
-void* newIndex(int id){
-  int *p = (int*) malloc(sizeof(int));
-  *p = id;
-  printf("Making %d\n", *p);
-  return p;
-}
-void putInQueue(Queue *q, int elements);
+void* newIndex(int id);
+void putInQueue(Queue *q, int luggages);
 Queue * getQueue();
 Queue *makeQueue(int id);
 pthread_t * makeThread();
@@ -77,30 +72,34 @@ pthread_t * makeThread();
 
 int main(){
 	// Allocating one thread for each line of matrix
-  int nt, ns,i,j;
+  int nt, ns;
   pthread_t* tmpThread;
   Queue* tmpQueue;
 	vector< pthread_t* > ttracks;
   vector< pthread_t* > tsensors;
   cin >> nt >> ns;
 
-  for(i=0; i<ns; i++){
-      tmpThread = makeThread();
+  amountEnableSensors = ns;
+
+  // Adding luggages in queues
+  for(int i=0; i<ns; i++){
       tmpQueue = makeQueue(i);
-
-      if(pthread_create(tmpThread, NULL, sensor, newIndex(i)) == 0){
-          // Adding thread
-          tsensors.push_back(tmpThread);
-          // Adding queues to this sensor
-          AirportQueues.push_back(tmpQueue);
-          AirportQueuesInOrder.push(tmpQueue);
-      }
-
+      AirportQueues.push_back(tmpQueue);
+      AirportQueuesInOrder.push(tmpQueue);
   }
-  for(int j=0; j<nt; j++) {
+  // Starting sensors
+  for(int i=0; i<ns; i++){
       tmpThread = makeThread();
-      if(pthread_create(tmpThread, NULL, track, NULL) == 0)
+      if(pthread_create(tmpThread, NULL, sensor, newIndex(i)) == 0){
+          tsensors.push_back(tmpThread);
+      }
+  }
+  // Starting tracks
+  for(int i=0; i<nt; i++) {
+      tmpThread = makeThread();
+      if(pthread_create(tmpThread, NULL, track, newIndex(i)) == 0){
           ttracks.push_back(tmpThread);
+      }
   }
 
   pthread_exit(NULL);
@@ -114,22 +113,29 @@ int main(){
   *
 ***/
 void* track(void* arg){
-  int trackItens = TRACK_SIZE;
+  int *dd = (int*) arg;
+  int id = *dd;
+
+  int trackItens = TRACK_LUGGAGES;
 
   while(trackItens > 0){
     	Queue *shortQueue = getQueue();
+      if(shortQueue != NULL){
+          //printf("[ESTEIRA %d]: colocando na fila %d \n",id, shortQueue->id);
+        	// lock was happend at getQUeue lock(&shortQueue->mtxCanUseQueue);
+        	while(shortQueue->size == MAX_LUGGAGES_AT_QUEUE){
+        		condWait(&shortQueue->cndQueueEmpty, &shortQueue->mtxCanUseQueue);
+        	}
 
-    	lock(&shortQueue->mtxCanUseQueue);
+          shortQueue->size++;
+          trackItens--;
 
-    	while(shortQueue->size == MAX_QUEUE_SIZE){
-    		condWait(&shortQueue->cndQueueEmpty, &shortQueue->mtxCanUseQueue);
-    	}
-
-      printf(" Track X removing item.\n");
-      shortQueue->size++;
-      trackItens--;
-
-      unlock(&shortQueue->mtxCanUseQueue);
+          if(trackItens == 0){
+              printf("[ESTEIRA %d]: coloquei na fila %d me restam [%d]\n", id, shortQueue->id, trackItens);
+          }
+          signal(&shortQueue->cndQueueFill);
+          unlock(&shortQueue->mtxCanUseQueue);
+      }
     }
 	pthread_exit(NULL);
 }
@@ -143,43 +149,55 @@ void* track(void* arg){
 ***/
 
 void* sensor(void* arg){//int id
-  //cout << " I'm sensor " << id << endl;
-  //printf("uhaehuaeha\n");
   int *dd = (int*) arg;
   int id = *dd;
-  //printf("truth\n");
+
 	int amountLuggagePassed = 0;
-  //pthread_exit(NULL);
+
 	while(true){
-    printf("Sensor id: %d\n", id);
-		Queue *myQueue = AirportQueues[id];
-    printf("My queue is: %d\n", myQueue->id);
-		lock(&myQueue->mtxCanUseQueue);
-		while(myQueue->size == 0){
-			signal(&myQueue->cndQueueEmpty); // Acordará alguma esteira se estiver bloqueada para escrever na queue...
-			condWait(&myQueue->cndQueueFill, &myQueue->mtxCanUseQueue); // Sempre que alguma esteira escrever na queue ela dará siganl para o mtxQueueFIlll dentro da fila
-		}
+  		Queue *myQueue = AirportQueues[id];
+      /*if(myQueue == NULL){
+          printf("fucking_crazyy\n");
+          exit(1);
+      }*/
+  		lock(&myQueue->mtxCanUseQueue);
+  		while(myQueue->size == 0){
+  			   signal(&myQueue->cndQueueEmpty); // Acordará alguma esteira se estiver bloqueada para escrever na queue...
+  			   condWait(&myQueue->cndQueueFill, &myQueue->mtxCanUseQueue); // Sempre que alguma esteira escrever na queue ela dará siganl para o mtxQueueFIlll dentro da fila
+  		}
+      //TSTprintf("[SENSOR %d]:  Passing luggage %d!!!\n", id, myQueue->size);
 
-		// Ler uma Mala
-		myQueue->size --;
-		usleep(500);
+      // Ler uma Mala
+  		myQueue->size--;
+      amountLuggagePassed++;
+  		usleep(1);
+      if(myQueue->size < 0){
+          printf("pqp \n");
+      }
+  		if(amountLuggagePassed == MAX_SENSOR_LUGGAGES){// Se liga na porra da manutenção...
+                      printf("!!!! [SENSOR %d]: going to maintenance !!! %d\n", id, myQueue->size);
+                			Queue *t = getQueue();
+                			if(t != NULL && t->id != -1){
+                         //TSTprintf(" _________ REALLOC LUGAGGES _________ \n");
+                				 putInQueue(t, myQueue->size);
+                				// Será que vai caber tudo? tenho que mandar um por um ensse carai
 
-		// Se liga na porra da manutenção...
-		if(amountLuggagePassed == MAX_LUGGAGE){
-			Queue *t;
-			if(t = getQueue(), t->id == -1){
-				putInQueue(myQueue, myQueue->size);
-				// Será que vai caber tudo? tenho que mandar um por um ensse carai
-			}
+                			}
 
-			amountEnableSensors--;
+                			amountEnableSensors--;
+                      if(amountEnableSensors == 0){
+                          printf(" *******  !!!!  ALL SENSORS GOING TO maintenance !!!!! ******** \n");
+                    			//barrierWait(A_BARREIRA_DE_MANUTENCAO);
 
-			//barrierWait(A_BARREIRA_DE_MANUTENCAO);
-			amountEnableSensors++;
-			amountLuggagePassed = 0;
-		}else{
-			unlock(&myQueue->mtxCanUseQueue); // Para que minha fila já possa ser usada por alguma esteira..
-		}
+                    			amountEnableSensors++;
+                    			amountLuggagePassed = 0;
+                      }
+  		}else{
+          //TSTprintf("[SENSOR %d]: passed to me a laggage\n", id);
+    			unlock(&myQueue->mtxCanUseQueue); // Para que minha fila já possa ser usada por alguma esteira..
+  		}
+
+      signal(&myQueue->cndQueueEmpty);
 	}
 	pthread_exit(NULL);
 }
@@ -201,40 +219,47 @@ Queue * getQueue(){
 	vector<Queue*> tmp;
 	Queue *q, *queueTMP;
   q = NULL;
-  queueTMP = AirportQueuesInOrder.top();
-	for(int i=0; i<AirportQueuesInOrder.size() && q == NULL; i++){
+  int size = AirportQueuesInOrder.size();
+
+	for(int i=0; i<size && q == NULL; i++){
 		queueTMP = AirportQueuesInOrder.top();
-    if(tryLock(&queueTMP->mtxCanUseQueue)){
-        // mutex has been locked..
-        q = queueTMP;
+    if(queueTMP != NULL){
+        if(tryLock(&queueTMP->mtxCanUseQueue)){
+            q = queueTMP;
+        }
+    		tmp.push_back(queueTMP);
+    		AirportQueuesInOrder.pop();
     }
-		tmp.push_back(queueTMP);
-		AirportQueuesInOrder.pop();
 	}
 
-  // "atualizando da pior forma a queues in order"
+  // "RECARREGANDO A priority_queue da pior forma a queues in order"
   while(!tmp.empty()){
       AirportQueuesInOrder.push(tmp.back());
       tmp.pop_back();
   }
 
+  //printf("\t[get_queue]Returning to queue %d laggage %d [ %d == %d ]\n", q->id, q->size, AirportQueues.size(), AirportQueuesInOrder.size());
 	unlock(&mtxAirportQueues);
 	return q;
 }
 
-void putInQueue(Queue *q, int elements){
-	lock(&mtxAirportQueues);
-	lock(&q->mtxCanUseQueue);
+void putInQueue(Queue *q, int luggages){
+  printf("[WARN] at put in queue %d total of %d luggages [WARN]\n", q->id, luggages);
+	//lock(&mtxAirportQueues);
+	//lock(&q->mtxCanUseQueue);
 
-	q->size += elements;
+	q->size += luggages;
+
+  printf("New size %d\n", q->size);
 
   // "atualizando da pior forma a queues in order"
-  /*Queue refresh;
+  Queue refresh;
   refresh.size = -1;
   AirportQueuesInOrder.push(&refresh);// Adding refresh
+
   AirportQueuesInOrder.pop();// Will remove refresh, because resfresh is smallest size...
-*/
-  make_heap(const_cast<Queue**> (&AirportQueuesInOrder.top()), const_cast<Queue**>(&AirportQueuesInOrder.top()) + AirportQueuesInOrder.size(), CompareQueue());
+
+  //make_heap(const_cast<Queue**> (&AirportQueuesInOrder.top()), const_cast<Queue**>(&AirportQueuesInOrder.top()) + AirportQueuesInOrder.size(), CompareQueue());
 
 	unlock(&q->mtxCanUseQueue);
 	unlock(&mtxAirportQueues);
@@ -247,6 +272,13 @@ Queue *makeQueue(int id){
     //q->mtxCanUseQueue = PTHREAD_MUTEX_INITIALIZER;
     return q;
 }
+
+void* newIndex(int id){
+  int *p = (int*) malloc(sizeof(int));
+  *p = id;
+  return p;
+}
+
 
 pthread_t * makeThread(){
     pthread_t *t = (pthread_t*) malloc (sizeof(pthread_t));
