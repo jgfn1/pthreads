@@ -14,9 +14,9 @@
 #define MATRIX_SIZE 2
 
 /*Initializes the matrixes.*/
-int a[MATRIX_SIZE][MATRIX_SIZE] = {0};
-float x[MATRIX_SIZE] = {0};
-int b[MATRIX_SIZE] = {0};
+double a[MATRIX_SIZE][MATRIX_SIZE] = {0};
+double x[MATRIX_SIZE] = {0};
+double b[MATRIX_SIZE] = {0};
 
 /*Matrix created to store the assigned variables for each thread.*/
 int division_matrix[MATRIX_SIZE][MATRIX_SIZE] = {0};
@@ -135,7 +135,7 @@ int main()
     printf("\nLinear System Solution:\n");
     for(i = 0; i < MATRIX_SIZE; ++i)
     {
-        printf("x[%d]: %.2f\n", i, x[i]);
+        printf("x[%d]: %.4lf\n", i, x[i]);
     }
     printf("\n");     
         
@@ -152,9 +152,9 @@ void *jacobi_threaded(void *index)
     int i = 0;
     int j = 0;
     int counter;
-
+    k = 0;
     /*Variable to store the sum used in the Jacobi Method.*/
-    int gama = 0;
+    double gama = 0;
 
     if(MATRIX_SIZE <= threads_number)
     {
