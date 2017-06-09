@@ -236,5 +236,5 @@ void *jacobi_threaded(void *index)
             }
         }
     }
-    printf("Thread %d has finished.\n", i);
+    // printf("Thread %d has finished.\n", i);
 }
