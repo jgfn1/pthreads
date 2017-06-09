@@ -1,4 +1,3 @@
 #!/bin/bash
-for ((i = 0; i < 1000; i++ )) do
-	./bin
-done
+g++ q6.cpp -std=c++0x -lpthread -o e
+./e < in
