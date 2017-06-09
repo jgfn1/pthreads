@@ -8,9 +8,16 @@
 #include <unistd.h>
 // #include "stdc++.h"
 
+#define N_TRACKS 7
+#define TRACK_LUGGAGES 250
+// 10 tracks with 10 luggages each
 #define MAX_LUGGAGES_AT_QUEUE 5
-#define MAX_SENSOR_LUGGAGES 2
-#define TRACK_LUGGAGES 10
+// the queue for the sensor have at max 5 luggages
+#define N_SENSORS 4
+#define MAX_SENSOR_LUGGAGES 100
+// sensors can passed at max 100 luggages
+
+
 
 using namespace std;
 
@@ -64,7 +71,7 @@ bool tryLock(pthread_mutex_t * mutexAddr){ return pthread_mutex_trylock(mutexAdd
 void* track(void* arg);
 void* sensor(void* arg);
 void* newIndex(int id);
-void putInQueue(Queue *q, int luggages);
+void reallocMyQueueLuggages(Queue *q, int luggages);
 Queue * getQueue();
 Queue *makeQueue(int id);
 pthread_t * makeThread();
@@ -78,25 +85,25 @@ int main(){
   Queue* tmpQueue;
 	vector< pthread_t* > ttracks;
   vector< pthread_t* > tsensors;
-  cin >> nt >> ns;
 
-  amountEnableSensors = ns;
+  amountEnableSensors = N_SENSORS;
+
   pthread_barrier_init (&barrierMaintenance, NULL, ns);
   // Adding luggages in queues
-  for(int i=0; i<ns; i++){
+  for(int i=0; i<N_SENSORS; i++){
       tmpQueue = makeQueue(i);
       AirportQueues.push_back(tmpQueue);
       AirportQueuesInOrder.push(tmpQueue);
   }
   // Starting sensors
-  for(int i=0; i<ns; i++){
+  for(int i=0; i<N_SENSORS; i++){
       tmpThread = makeThread();
       if(pthread_create(tmpThread, NULL, sensor, newIndex(i)) == 0){
           tsensors.push_back(tmpThread);
       }
   }
   // Starting tracks
-  for(int i=0; i<nt; i++) {
+  for(int i=0; i<N_TRACKS; i++) {
       tmpThread = makeThread();
       if(pthread_create(tmpThread, NULL, track, newIndex(i)) == 0){
           ttracks.push_back(tmpThread);
@@ -135,7 +142,7 @@ void* track(void* arg){
           unlock(&shortQueue->mtxCanUseQueue);
       }
     }
-    //printf("I FINISHED %d\n", id);
+    printf("I FINISHED %d\n", id);
 	pthread_exit(NULL);
 }
 
@@ -176,21 +183,22 @@ void* sensor(void* arg){//int id
                 			Queue *t = getQueue();
                 			if(t != NULL && t->id != -1){
                          //TSTprintf(" _________ REALLOC LUGAGGES _________ \n");
-                				 putInQueue(t, myQueue->size);
+                				 reallocMyQueueLuggages(t, myQueue->size);
                 				// Será que vai caber tudo? tenho que mandar um por um ensse carai
                 			}
 
                       lock(&mtxBarrierZoneSync);
-                			   amountEnableSensors--;
+                			    amountEnableSensors--;
+                          if(amountEnableSensors == 0){
+                              printf(" *******  !!!!  ALL SENSORS GOING TO maintenance !!!!! ******** \n");
+                          }
                       unlock(&mtxBarrierZoneSync);
-                      if(amountEnableSensors == 0){
-                          printf(" *******  !!!!  ALL SENSORS GOING TO maintenance !!!!! ******** \n");
-                      }
                       pthread_barrier_wait(&barrierMaintenance);
 
                       lock(&mtxBarrierZoneSync);
                         amountLuggagePassed = 0;
                         amountEnableSensors++;
+                        myQueue->size = 0;
                       unlock(&mtxBarrierZoneSync);
 
                       unlock(&myQueue->mtxCanUseQueue);
@@ -245,7 +253,7 @@ Queue * getQueue(){
 	return q;
 }
 
-void putInQueue(Queue *q, int luggages){
+void reallocMyQueueLuggages(Queue *q, int luggages){
   //TSTprintf("[WARN] at put in queue %d total of %d luggages [WARN]\n", q->id, luggages);
 	//lock(&mtxAirportQueues);
 	//lock(&q->mtxCanUseQueue);
@@ -269,7 +277,6 @@ Queue *makeQueue(int id){
     Queue *q = (Queue*) malloc (sizeof(Queue));
     q->id = id;
     q->size = 0;
-    //q->mtxCanUseQueue = PTHREAD_MUTEX_INITIALIZER;
     return q;
 }
 
